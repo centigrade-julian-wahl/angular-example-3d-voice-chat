@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "leanscope": {
+      "source": { "source": "github", "repo": "leanscope/leanscope-agent-kit" }
+    }
+  },
+  "enabledPlugins": {
+    "leanscope-agent-kit@leanscope": true
+  }
+}
