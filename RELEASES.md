@@ -1,5 +1,16 @@
 # Release notes
 
+## 0.2.0 — 2026-11-01
+
+- **Google Gemini keys work.** Set `LEANSCOPE_GOOGLE_API_KEY` in `.env` to run choreos on Gemini.
+  The app sends it to the agent server as the `google` key and counts it as an LLM key on the home
+  page. `npm run connect:claude` also stores it in the Agent Kit plugin (needs plugin 0.6.0+).
+- **The Agent Kit plugin stays up to date.** `.claude/settings.json` sets `autoUpdate: true` on
+  the `leanscope` marketplace, so Claude Code pulls new plugin versions on startup. To pull one
+  right away, run the new `npm run update:plugin`.
+  - **Existing forks:** run `npm run update:plugin` once, then `npm run connect:claude`, and start
+    a new Claude Code session.
+
 ## 0.1.2 — 2026-10-31
 
 - **The choreo guid moved to `.env`.** Set `LEANSCOPE_CHOREO_SCENARIO_GUID` in `.env` instead of

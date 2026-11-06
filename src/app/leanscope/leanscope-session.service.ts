@@ -317,7 +317,7 @@ async function createErrorMessage(res: Response): Promise<string> {
     case 404:
       return `The choreo was not found (404). Check LEANSCOPE_CHOREO_SCENARIO_GUID in .env. ${detail}`;
     case 422:
-      return `The agent server needs your own LLM key (422). Add an OpenAI, Anthropic or Mistral key to .env. ${detail}`;
+      return `The agent server needs your own LLM key (422). Add an OpenAI, Anthropic, Google or Mistral key to .env. ${detail}`;
     default:
       return `Could not create the session (${res.status}). ${detail}`;
   }

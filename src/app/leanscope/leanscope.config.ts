@@ -5,7 +5,7 @@ import type { ApiKeyVendor } from './agent-server.types';
 export interface LeanScopeSecrets {
   /** LeanScope personal team-repos access token. Sent as `Authorization: Bearer …`. */
   accessToken: string;
-  /** Your own keys. At least one of openai / anthropic / mistral; typesafe for 🎯 Decision Model steps. */
+  /** Your own keys. At least one of openai / anthropic / mistral / google; typesafe for 🎯 Decision Model steps. */
   apiKeys: Partial<Record<ApiKeyVendor, string>>;
 }
 
@@ -33,7 +33,7 @@ export function provideLeanScope(config: LeanScopeConfig): EnvironmentProviders 
   return makeEnvironmentProviders([{ provide: LEANSCOPE_CONFIG, useValue: config }]);
 }
 
-const LLM_VENDORS: ApiKeyVendor[] = ['openai', 'anthropic', 'mistral'];
+const LLM_VENDORS: ApiKeyVendor[] = ['openai', 'anthropic', 'mistral', 'google'];
 
 /** What is missing before a session can start, as hints for the user. Empty when ready. */
 export function missingConfig(config: LeanScopeConfig): string[] {
@@ -49,7 +49,7 @@ export function missingConfig(config: LeanScopeConfig): string[] {
   }
   if (!LLM_VENDORS.some((vendor) => config.apiKeys[vendor]?.trim())) {
     missing.push(
-      'LEANSCOPE_OPENAI_API_KEY, LEANSCOPE_ANTHROPIC_API_KEY or LEANSCOPE_MISTRAL_API_KEY in .env',
+      'LEANSCOPE_OPENAI_API_KEY, LEANSCOPE_ANTHROPIC_API_KEY, LEANSCOPE_GOOGLE_API_KEY or LEANSCOPE_MISTRAL_API_KEY in .env',
     );
   }
   return missing;

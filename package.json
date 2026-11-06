@@ -1,13 +1,14 @@
 {
   "name": "leanscope-agent-kit-angular-quickstart",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "scripts": {
     "ng": "ng",
     "start": "node scripts/run-ng.mjs serve --open",
     "build": "node scripts/run-ng.mjs build",
     "watch": "node scripts/run-ng.mjs build --watch --configuration development",
     "test": "node scripts/run-ng.mjs test",
-    "connect:claude": "node scripts/sync-env.mjs --claude"
+    "connect:claude": "node scripts/sync-env.mjs --claude",
+    "update:plugin": "node scripts/sync-env.mjs --update-plugin"
   },
   "private": true,
   "packageManager": "npm@11.19.1",

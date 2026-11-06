@@ -23,7 +23,7 @@ conversation and renders a form for each question. Your MVP screens go on top of
 - Node.js 22.22.3+, 24.15+ or 26+ (`nvm use` reads `.nvmrc`)
 - A LeanScope **personal team-repos access token**: https://app.leanscope.ai/ → your avatar
   (top-right)
-- An OpenAI, Anthropic or Mistral API key. Sessions run on your own key.
+- An OpenAI, Anthropic, Google Gemini or Mistral API key. Sessions run on your own key.
 - Optional: a TypeSafe API key, if your choreo has 🎯 Decision Model steps.
 - A coding agent. Claude Code is set up already; other clients are covered below.
 
@@ -36,7 +36,8 @@ conversation and renders a form for each question. Your MVP screens go on top of
    both the app and the coding agent's MCP servers use it. Leave `LEANSCOPE_CHOREO_SCENARIO_GUID`
    empty for now: your agent tells you its value in step 5.
 4. **Connect your coding agent.** Open the folder in Claude Code (CLI or the VS Code extension).
-   `.claude/settings.json` enables the Agent Kit plugin.
+   `.claude/settings.json` enables the Agent Kit plugin and keeps it up to date: Claude Code pulls
+   new versions on startup. To pull one right away, run `npm run update:plugin`.
    - Accept the plugin install when the session starts. (If it asks for the token, you can leave
      the fields empty: the next step fills them.)
    - Run `npm run connect:claude`. It stores the values from `.env` in the plugin's settings (your
@@ -105,6 +106,7 @@ handle (`inventory`, `tool_activity`, `tts_audio`, …). The full API is in the
 | `npm test -- --watch=false` | Unit tests (Vitest) |
 | `npm run build` | Production build into `dist/` |
 | `npm run connect:claude` | Stores the secrets from `.env` in the Agent Kit plugin in Claude Code |
+| `npm run update:plugin` | Pulls the newest Agent Kit plugin into this project (Claude Code also checks on startup) |
 
 ## Security: development only
 

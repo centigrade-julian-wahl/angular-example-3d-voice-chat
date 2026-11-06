@@ -9,7 +9,7 @@ export interface SessionRequest {
   choreoScenarioGuid: string;
   /** Optional when the Bearer is a repository access token: the server fills it in. */
   choreoRepositoryId?: string;
-  /** Your own LLM keys. At least one of openai / anthropic / mistral. Empty values must be left out. */
+  /** Your own LLM keys. At least one of openai / anthropic / mistral / google. Empty values must be left out. */
   apiKeys?: Partial<Record<ApiKeyVendor, string>>;
   /** e.g. 'en', 'de', 'de-DE'. */
   locale?: string;
@@ -21,7 +21,7 @@ export interface SessionRequest {
   lmModel?: string;
 }
 
-export type ApiKeyVendor = 'openai' | 'anthropic' | 'mistral' | 'elevenlabs' | 'typesafe';
+export type ApiKeyVendor = 'openai' | 'anthropic' | 'mistral' | 'google' | 'elevenlabs' | 'typesafe';
 
 /** Response of `POST /api/v1/sessions`. */
 export interface SessionResponse {
