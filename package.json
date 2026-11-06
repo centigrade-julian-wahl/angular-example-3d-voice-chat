@@ -8,7 +8,8 @@
     "watch": "node scripts/run-ng.mjs build --watch --configuration development",
     "test": "node scripts/run-ng.mjs test",
     "connect:claude": "node scripts/sync-env.mjs --claude",
-    "update:plugin": "node scripts/sync-env.mjs --update-plugin"
+    "update:plugin": "node scripts/sync-env.mjs --update-plugin",
+    "inspect:mcp": "npx -y @modelcontextprotocol/inspector@latest"
   },
   "private": true,
   "packageManager": "npm@11.19.1",
