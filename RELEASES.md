@@ -1,5 +1,12 @@
 # Release notes
 
+## 0.2.1 — 2026-11-11
+
+- **`npm run update:plugin` works for every coding agent, not only Claude Code.** It finds each
+  client that has the Agent Kit plugin and updates it: Claude Code through its CLI, GitHub Copilot
+  in VS Code and Cursor by pulling their plugin clone. For Copilot CLI and Codex it prints the
+  command to run. `npm run update:plugin -- --clients vscode` limits it to one client.
+
 ## 0.2.0 — 2026-11-01
 
 - **Google Gemini keys work.** Set `LEANSCOPE_GOOGLE_API_KEY` in `.env` to run choreos on Gemini.

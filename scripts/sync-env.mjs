@@ -7,9 +7,7 @@
 //   - the coding agent's MCP servers: `node scripts/sync-env.mjs --claude` (npm run
 //     connect:claude) stores them in the Agent Kit plugin's settings in Claude Code (OS keychain).
 //
-//   - `node scripts/sync-env.mjs --update-plugin` (npm run update:plugin) pulls the newest Agent
-//     Kit plugin into this project. Claude Code also does this on startup (`autoUpdate` in
-//     .claude/settings.json).
+//   To pull the newest Agent Kit plugin, see scripts/update-plugin.mjs (npm run update:plugin).
 //
 // Run without options, it lists which names are set. It never prints a secret.
 
@@ -84,7 +82,7 @@ export function describeEnv(env = readEnvFile()) {
 }
 
 /** The Claude Code CLI: `claude` on the PATH, else the one bundled with the VS Code extension. */
-function findClaude() {
+export function findClaude() {
   try {
     execFileSync('claude', ['--version'], { stdio: 'ignore' });
     return 'claude';
@@ -140,27 +138,7 @@ function configureClaude(env) {
   return 0;
 }
 
-/** Refreshes the LeanScope marketplace and updates the plugin in this project. */
-function updatePlugin() {
-  const claude = findClaude();
-  if (!claude) {
-    console.error('Claude Code CLI not found. Install it (https://code.claude.com).');
-    return 1;
-  }
-  const marketplace = PLUGIN.split('@')[1];
-  for (const args of [
-    ['plugin', 'marketplace', 'update', marketplace],
-    ['plugin', 'update', PLUGIN, '--scope', 'project'],
-  ]) {
-    const result = spawnSync(claude, args, { stdio: 'inherit' });
-    if (result.status !== 0) return result.status ?? 1;
-  }
-  console.log('Start a new Claude Code session (or reload the window) to use the new version.');
-  return 0;
-}
-
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (process.argv.includes('--update-plugin')) process.exit(updatePlugin());
   const env = readEnvFile();
   console.log(describeEnv(env));
   if (process.argv.includes('--claude')) process.exit(configureClaude(env));

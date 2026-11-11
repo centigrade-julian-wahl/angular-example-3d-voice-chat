@@ -106,7 +106,7 @@ handle (`inventory`, `tool_activity`, `tts_audio`, …). The full API is in the
 | `npm test -- --watch=false` | Unit tests (Vitest) |
 | `npm run build` | Production build into `dist/` |
 | `npm run connect:claude` | Stores the secrets from `.env` in the Agent Kit plugin in Claude Code |
-| `npm run update:plugin` | Pulls the newest Agent Kit plugin into this project (Claude Code also checks on startup) |
+| `npm run update:plugin` | Pulls the newest Agent Kit plugin into every coding agent that has it: Claude Code, GitHub Copilot in VS Code, Cursor (Copilot CLI and Codex: prints the command). `-- --clients vscode` limits it to one |
 
 ## Security: development only
 
@@ -128,6 +128,9 @@ npx -y github:leanscope/leanscope-agent-kit --clients cursor
 
 To diagnose a connection: `npx -y github:leanscope/leanscope-agent-kit --check --clients <client>`.
 Details are in the [Agent Kit README](https://github.com/leanscope/leanscope-agent-kit).
+
+To update the plugin later, run `npm run update:plugin`. VS Code and Cursor don't update it on
+their own.
 
 ## License
 
