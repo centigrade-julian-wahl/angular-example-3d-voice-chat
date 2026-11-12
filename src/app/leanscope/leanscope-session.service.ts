@@ -6,6 +6,7 @@ import type {
   PendingQuestion,
   PendingStep,
   SessionEndingFrame,
+  SessionFrameData,
   SessionRequest,
   SessionResponse,
   SseFrame,
@@ -129,6 +130,53 @@ export class LeanScopeSessionService {
     if (res && !res.ok) this._error.set(`Could not start the session (${res.status}).`);
   }
 
+  async transcribe(blob: Blob, language?: string): Promise<string | null> {
+    const run = this.run;
+    const query = language ? `?${new URLSearchParams({ language })}` : '';
+    const res = await this.call(`/stt${query}`, {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type || 'application/octet-stream' },
+      body: blob,
+    });
+    if (!res || run !== this.run) return null;
+    try {
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await errorText(res)}`);
+      const payload: unknown = await res.json();
+      if (run !== this.run) return null;
+      if (!payload || typeof payload !== 'object' || !('text' in payload) || typeof payload.text !== 'string') {
+        throw new Error('The server returned an invalid transcript.');
+      }
+      this._error.set(null);
+      return payload.text;
+    } catch (err) {
+      if (run === this.run) this._error.set(`Could not transcribe audio: ${messageOf(err)}`);
+      return null;
+    }
+  }
+
+  async setTtsActive(active: boolean): Promise<boolean> {
+    const run = this.run;
+    const res = await this.call('/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active }),
+    });
+    if (!res || run !== this.run) return false;
+    try {
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await errorText(res)}`);
+      const payload: unknown = await res.json();
+      if (run !== this.run) return false;
+      if (!payload || typeof payload !== 'object' || !('active' in payload) || payload.active !== active) {
+        throw new Error('The server did not confirm the requested TTS state.');
+      }
+      this._error.set(null);
+      return true;
+    } catch (err) {
+      if (run === this.run) this._error.set(`Could not change TTS: ${messageOf(err)}`);
+      return false;
+    }
+  }
+
   /** Answers the pending question. `answer` matches `pendingQuestion().schema`. */
   async submit(answer: Record<string, unknown>): Promise<boolean> {
     const res = await this.call('/submit', {
@@ -171,9 +219,22 @@ export class LeanScopeSessionService {
   }
 
   /** Calls `listener` with every SSE frame. Returns a function that removes it. */
-  onFrame(listener: (frame: SseFrame) => void): () => void {
-    this.frameListeners.add(listener);
-    return () => this.frameListeners.delete(listener);
+  onFrame(listener: (frame: SseFrame) => void): () => void;
+  onFrame<Event extends keyof SessionFrameData>(
+    event: Event,
+    listener: (data: SessionFrameData[Event]) => void,
+  ): () => void;
+  onFrame<Event extends keyof SessionFrameData>(
+    eventOrListener: Event | ((frame: SseFrame) => void),
+    listener?: (data: SessionFrameData[Event]) => void,
+  ): () => void {
+    const forward = typeof eventOrListener === 'function'
+      ? eventOrListener
+      : (frame: SseFrame) => {
+          if (frame.event === eventOrListener) listener?.(frame.data as SessionFrameData[Event]);
+        };
+    this.frameListeners.add(forward);
+    return () => this.frameListeners.delete(forward);
   }
 
   private async loadHistory(run: number): Promise<void> {
@@ -286,10 +347,12 @@ export class LeanScopeSessionService {
   private async call(path: string, init: RequestInit = {}): Promise<Response | null> {
     const session = this._session();
     if (!session) return null;
+    const run = this.run;
     try {
-      return await this.fetch(`${session.controllerUrl}${path}`, init);
+      const res = await this.fetch(`${session.controllerUrl}${path}`, init);
+      return run === this.run ? res : null;
     } catch (err) {
-      this._error.set(`Could not reach the session: ${messageOf(err)}`);
+      if (run === this.run) this._error.set(`Could not reach the session: ${messageOf(err)}`);
       return null;
     }
   }

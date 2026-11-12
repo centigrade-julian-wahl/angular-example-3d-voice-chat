@@ -19,7 +19,7 @@ interface Message {
         <p>{{ message.text }}</p>
       </article>
     } @empty {
-      <p class="empty">No messages yet.</p>
+      <p class="empty">{{ emptyText() }}</p>
     }
   `,
   styles: `
@@ -58,6 +58,9 @@ export class Transcript {
   readonly steps = input.required<Step[]>();
   /** The step that waits for an answer; it is shown as the form, not as a message. */
   readonly pendingGuid = input<string | null>(null);
+  readonly userLabel = input('You');
+  readonly agentLabel = input('Agent');
+  readonly emptyText = input('No messages yet.');
 
   protected readonly messages = computed<Message[]>(() =>
     this.steps()
@@ -67,7 +70,9 @@ export class Transcript {
         return {
           guid: step.guid,
           fromUser,
-          author: fromUser ? 'You' : step.title?.trim() || step.actorSymbolRef || 'Agent',
+          author: fromUser
+            ? this.userLabel()
+            : step.title?.trim() || step.actorSymbolRef || this.agentLabel(),
           text: fromUser ? answerText(step.line) : step.line,
         };
       }),

@@ -1,9 +1,6 @@
 // Your LeanScope secrets (and the choreo guid) live in ONE place: the gitignored `.env` in the project root (names as in
-// `.env.example`, the same the LeanScope Agent Kit uses). They reach:
-//
-//   - the Angular app: `scripts/run-ng.mjs` passes them to `ng serve` / `ng build` as the
-//     build-time constant LEANSCOPE_SECRETS (see src/environments/environment.ts). No file is
-//     written.
+// `.env.example`, the same the LeanScope Agent Kit uses). The local voice backend reads them at runtime;
+// they are never compiled into the Angular browser bundle.
 //   - the coding agent's MCP servers: `node scripts/sync-env.mjs --claude` (npm run
 //     connect:claude) stores them in the Agent Kit plugin's settings in Claude Code (OS keychain).
 //

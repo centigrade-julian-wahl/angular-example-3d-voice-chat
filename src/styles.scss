@@ -1,13 +1,13 @@
-// Deliberately plain: no UI library, so your fork can pick its own.
 :root {
-  --ls-text: #1d2433;
-  --ls-muted: #5b6475;
-  --ls-border: #d9dee7;
-  --ls-surface: #f2f4f8;
-  --ls-accent: #3451d1;
-  --ls-accent-soft: #e3e8fc;
-  --ls-danger: #b42318;
-  color-scheme: light;
+  --ls-background: #121826;
+  --ls-text: #f7f9fc;
+  --ls-muted: #b7c3d2;
+  --ls-border: #354256;
+  --ls-surface: #1b2535;
+  --ls-accent: #2da4dc;
+  --ls-accent-soft: #18384d;
+  --ls-danger: #ff8e87;
+  color-scheme: dark;
 }
 
 * {
@@ -16,12 +16,10 @@
 
 body {
   margin: 0;
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
+  min-width: 320px;
+  min-height: 100svh;
+  background: var(--ls-background);
+  font-family: 'Noi Grotesk', 'DM Sans', 'Trebuchet MS', sans-serif;
   line-height: 1.5;
   color: var(--ls-text);
 }
@@ -44,8 +42,13 @@ button,
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.62;
   cursor: default;
+}
+
+:focus-visible {
+  outline: 3px solid #78d0fa;
+  outline-offset: 3px;
 }
 
 code {

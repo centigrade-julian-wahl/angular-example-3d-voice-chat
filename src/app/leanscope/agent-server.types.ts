@@ -120,6 +120,51 @@ export interface GateFrame {
 /** `session_ending` frame. */
 export interface SessionEndingFrame {
   reason: EndReason;
+  error?: { code: string; message: string };
+}
+
+export interface TtsAlignment {
+  characters: string[];
+  character_start_times_seconds: number[];
+  character_end_times_seconds: number[];
+}
+
+export interface TtsAudioFrame {
+  stepGuid: string;
+  audioBase64: string;
+  mimeType: string;
+  alignment?: TtsAlignment;
+}
+
+export interface TtsAudioEndFrame {
+  stepGuid: string;
+  chunks: number;
+}
+
+export interface PersonaResource {
+  guid: string;
+  name: string;
+  kind: { guid: string; name: string };
+  parameters: Record<string, string>;
+  files: { guid: string; name: string; mimeType: string; url: string }[];
+}
+
+export interface ActorRef {
+  resources?: PersonaResource[];
+  [key: string]: unknown;
+}
+
+export interface ActorsFrame {
+  actors: ActorRef[];
+}
+
+export interface SessionFrameData {
+  step: Step;
+  gate: GateFrame;
+  tts_audio: TtsAudioFrame;
+  tts_audio_end: TtsAudioEndFrame;
+  actors: ActorsFrame;
+  session_ending: SessionEndingFrame;
 }
 
 /** One parsed frame of `GET …/events`. */

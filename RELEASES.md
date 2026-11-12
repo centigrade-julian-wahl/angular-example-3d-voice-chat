@@ -1,5 +1,19 @@
 # Release notes
 
+## 0.3.0 — 2026-11-12
+
+- German push-to-talk conversation UI with text fallback, a Three.js character and
+  an audio-driven shader mouth without morph targets or jaw bones.
+- Local voice prototype connects ElevenLabs STT/TTS and LeanScope sessions through
+  a Node BFF. Credentials stay server-side instead of entering the browser bundle.
+- Generic session transport adds native STT, TTS activation and typed audio/actor
+  events, with regression tests. The current voice page still uses the local BFF;
+  the hosted native pipeline is not yet integrated or accepted end to end.
+- Transcript handling and local SSE replay fixes, plus frontend and backend tests.
+- [From-scratch implementation plan](docs/Implementierungsplan-from-scratch.md)
+  documents the target without an own BFF and the separate Agent Server work.
+  This release is a development prototype, not a production deployment.
+
 ## 0.2.1 — 2026-11-11
 
 - **`npm run update:plugin` works for every coding agent, not only Claude Code.** It finds each

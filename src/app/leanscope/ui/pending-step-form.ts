@@ -42,7 +42,7 @@ import { answerFields, toAnswer, type AnswerField } from '../answer-fields';
             }
             @case ('choice') {
               <select [formControlName]="field.key">
-                <option [ngValue]="null" disabled>Choose…</option>
+                <option [ngValue]="null" disabled>{{ choosePlaceholder() }}</option>
                 @for (choice of field.choices; track $index) {
                   <option [ngValue]="choice.value">{{ choice.label }}</option>
                 }
@@ -60,7 +60,7 @@ import { answerFields, toAnswer, type AnswerField } from '../answer-fields';
       @if (formError(); as message) {
         <p class="error" role="alert">{{ message }}</p>
       }
-      <button type="submit" [disabled]="form().invalid || busy()">Send</button>
+      <button type="submit" [disabled]="form().invalid || busy()">{{ sendLabel() }}</button>
     </form>
   `,
   styles: `
@@ -117,6 +117,8 @@ export class PendingStepForm {
   readonly question = input.required<PendingQuestion>();
   /** True while the answer is being sent. */
   readonly busy = input(false);
+  readonly sendLabel = input('Send');
+  readonly choosePlaceholder = input('Choose…');
   readonly answered = output<Record<string, unknown>>();
 
   protected readonly fields = computed(() => answerFields(this.question()));
