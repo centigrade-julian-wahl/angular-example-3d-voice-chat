@@ -128,10 +128,14 @@ der Browser wählt keine Voice-ID und erzeugt kein TTS.
       Unternehmenskontext, passende Success Story, Zusammenfassung und Terminangebot.
       UI-Schritte nicht als unnötige Agent-Turns nachbauen. Bekannte Angaben nicht
       wiederholt erfragen; unklare Angaben nicht als beantwortet erfinden.
-12. **Termin und Abschluss:** `appointment` als Ja/Nein-Slot. Link nur bei Zustimmung;
-      keine automatische Buchung und keine Abfrage freier Termine. Die Terminfrage
-      muss beantwortbar bleiben. Danach Abschied ohne neue Frage; Audio ausspielen,
-      bevor die UI den Abschluss zeigt. Optionaler Kontext darf übersprungen werden.
+12. **Termin und Abschluss:** `appointment` als Ja/Nein-Slot für Termininteresse.
+   Bei Ja den nächsten tatsächlich buchbaren Slot von Thomas über Microsoft
+   Bookings abrufen, mit Datum, Uhrzeit, Zeitzone und Dauer anbieten und fragen,
+   ob er passt. Bei Ablehnung den Bookings-Link zur eigenen Auswahl ausgeben.
+   Bei Zustimmung benötigte Kontaktdaten und ausdrückliche Buchungsfreigabe
+   erfassen, erneut prüfen und automatisch buchen. Erst ein bestätigtes
+   Serverergebnis erlaubt die Aussage „gebucht“. Ohne Integration/Verfügbarkeit
+   transparent zum Link wechseln. Ablauf und Fehlerfälle siehe 5.4 und B6.
 
 ## 4. LeanScope-Referenzen für die Umsetzung
 
@@ -245,6 +249,63 @@ keine geratenen Payload-Varianten implementieren.
    Parameter und Engine-Pfad prüfen. Aus einem fehlenden Wartepunkt allein folgt nicht,
    dass eine Facet-Beziehung fehlt. Platzhalter auch in Facet-Texten und Ressourcen suchen.
 
+### 5.4 Termin-Szenario: nächster Slot und automatische Buchung
+
+Diese Erweiterung vom 12.11.2026 ersetzt die ursprüngliche Einschränkung
+„nur Link, keine Verfügbarkeitsabfrage oder automatische Buchung“.
+Der Nutzer hat automatische Buchung bei Zustimmung ausdrücklich gewählt.
+**Status:** Zielablauf; Microsoft-Zugriff und gehostete Integration sind noch
+nicht bestätigt. Keine echten Slots oder Buchungen ohne diese Voraussetzungen.
+
+1. **Interesse erfragen:** „Möchtest du mit Thomas über deine Themen sprechen?“
+   `appointment=false` -> freundlicher Abschied, keine Kalenderabfrage und kein
+   Buchungslink. Bei unklarer Antwort nachfragen und auf Eingabe warten.
+2. **Verfügbarkeit abrufen:** Bei `appointment=true` serverseitig den frühesten
+   buchbaren Slot für den konfigurierten Service und ausdrücklich Thomas ermitteln.
+   Nur bestätigte Verfügbarkeit verwenden, keine Termine aus LLM-Wissen ableiten.
+   Ohne Anbindung, bei Abfragefehler oder ohne Slot im Suchzeitraum den bestehenden
+   Bookings-Link zur eigenen Auswahl senden. Nicht behaupten, Thomas habe generell
+   keine Termine, wenn nur der begrenzte Suchzeitraum leer ist.
+3. **Slot anbieten und warten:** „Thomas hätte am [Datum] um [Uhrzeit] ([Zeitzone])
+   für [Dauer] Zeit. Passt dir dieser Termin?“ Datum und Zeit stammen ausschließlich
+   aus der Serverantwort. Ein eigener Eingabe-Turn erfasst `slotAccepted`.
+   Bei Nein direkt den Bookings-Link zur eigenen Auswahl ausgeben und verabschieden.
+   Keine weiteren Slots ungefragt anbieten. Bei Unklarheit bleibt die Frage offen.
+4. **Buchungsdaten erfassen:** Nur bei Ja und verfügbarer Buchungsintegration Name,
+   E-Mail und vom Service tatsächlich verlangte Angaben erheben. Ein strukturiertes
+   Formular erlaubt zuverlässige Korrektur der E-Mail; keine Adresse aus Sprache
+   ungeprüft übernehmen. Keine Daten aus dem beruflichen Rückblick an Microsoft senden.
+5. **Verbindlich bestätigen:** Konkreten Termin, Thomas, Service, Zeitzone, Dauer,
+   eventuelle Kosten und Empfängeradresse zusammenfassen. Fragen: „Soll ich diesen
+   Termin jetzt für dich buchen?“ Erst `bookingConfirmed=true` erlaubt den Write.
+   Ein früheres Ja zum Termininteresse oder zum Slot ersetzt diese Freigabe nicht.
+   Bei Abbruch keine Buchung; nur auf Wunsch den Link zur eigenen Buchung anbieten.
+6. **Prüfen und buchen:** Server validiert die Freigabe für genau diesen Slot und
+   diese Daten, prüft die Verfügbarkeit erneut und erstellt den Bookings-Termin.
+   Währenddessen Eingabe/erneutes Submit sperren. Bei inzwischen belegtem Slot oder
+   eindeutig fehlgeschlagener Buchung transparent den Link als Alternative ausgeben.
+7. **Ergebnis und Abschied:** Nur bei bestätigtem Erfolg mit Microsoft-Buchungs-ID
+   „Dein Termin ist gebucht“ mit Datum/Zeit ausgeben. Eine versandte E-Mail oder einen
+   Teams-Link nur behaupten/anzeigen, wenn tatsächlich bestätigt bzw. zurückgegeben.
+   Bei ungewissem Ergebnis nach Timeout zuerst serverseitig abgleichen; weder Erfolg
+   erfinden noch blind erneut buchen oder zu einer möglichen Doppelbuchung auffordern.
+   Letztes Audio vollständig abspielen, dann Session beenden.
+
+**Modellierung:** `appointment` bleibt die bestehende Interessensangabe.
+`slotAccepted`, `bookingName`, `bookingEmail`, serviceabhängige Pflichtangaben und
+`bookingConfirmed` sind neue, bedingte Eingabefelder mit echten Pending-Turns.
+Nicht alle als globale Pflicht-Slots deklarieren: Der Nein-Zweig muss ohne sie enden.
+Angebotener Slot, Angebotsablauf, Buchungsstatus und Buchungs-ID sind ausschließlich
+serverseitige Ergebnisse, keine vom LLM ausfüllbaren Felder. Buchungsfreigabe und
+Kontaktdaten nicht automatisch sessionsübergreifend im Rückblick-Inventory speichern.
+Bei Slot-/Datenänderung die vorherige Freigabe verwerfen.
+
+**Technische Freigabe:** B6 benötigt einen gehosteten Bookings-Connector bzw. einen
+vom Agent-Server-Team betriebenen Worker. Vorhandene Integration zuerst erfragen und
+wiederverwenden. Keine eigene BFF-Erweiterung oder Microsoft-Keys im Angular-Repo.
+Ein Prompt allein kann weder Verfügbarkeit abrufen noch Termine buchen. Solange
+Connector, Datenverträge und echte Eingabe-Turns fehlen, bleibt der Link-Fallback aktiv.
+
 ## 6. Phasen mit Abnahmekriterien
 
 Die folgende Reihenfolge ist der Arbeitsplan für das **Angular-/LeanScope-Team**.
@@ -261,7 +322,7 @@ erledigter Prototyp-Arbeiten. Geeignete vorhandene Bausteine jeweils wiederverwe
 | 5 | **Zustands-Mapper:** Session/Pending und reale Audio-/Recorder-Ereignisse nach `idle`, `listening`, `thinking`, `speaking` übersetzen; blink-Timer, später emotion/action. `listening` bei gehaltener Taste, nicht allein weil ein Formular offen ist. | Testsequenzen zeigen korrekte Wechsel; keine laufenden Aufnahme-/Status-Timer nach Ende; Avatar kennt nur Zustände. |
 | 6 | **Avatar-Runtime:** Three.js, GLTFLoader, Renderer, Licht, Kamera und AnimationMixer aufsetzen. CharacterConfig aus Actor-Ressource/GLB/Parametern erstellen; `idleClip`, `laughClip`, `mouthParam`, Emotion->Clip konfigurierbar. Relative Datei-URLs korrekt auflösen; lokale GLB als definierter Fallback. | Modell sichtbar, passend skaliert und zentriert; Idle/Laugh und Lade-/Fehlerzustände funktionieren auf Desktop/Mobil. Parameter nur an Avatar-Ressource bzw. ihrer `IS`-Bindung pflegen. |
 | 7 | **Shader-Lipsync:** Geeignete Materialfläche und konfigurierbaren Mundparameter aufbauen. Shader-Maske mit animiertem Modell stabil halten, keine Knochen/Morphs ergänzen. Zeichen-/Vokal-Alignment an tatsächliche Chunkzeit koppeln, ohne Alignment RMS. Bei Pause/Fehler/Ende Mund schließen. | Sichtbar synchrone Mundbewegung, unveränderte übrige Materialdarstellung, Reduced Motion und Reset getestet. Grenzen dokumentiert. |
-| 8 | **Success Story und Termin:** Kuratierte Projektliste in die Gesprächsinstruktion bzw. geeignete vorhandene Wissensressource einbringen. Nur bei klarer Passung eine Story nennen. `appointment` als Ja/Nein führen, bei Zustimmung Bookings-Link; sonst freundlich schließen. | Passender Treffer/kein Treffer, Mehrfachangaben, Korrektur, optionale Ablehnung und Termin Ja/Nein durchgespielt; keine unbeantwortete Abschlussfrage. |
+| 8 | **Success Story und Termin:** Kuratierte Projektliste integrieren, nur bei klarer Passung eine Story nennen. Terminablauf nach 5.4: Interesse -> gehostete Slot-Abfrage -> Slot-Zustimmung -> Kontaktdaten -> ausdrückliche Buchungsfreigabe -> automatische Buchung. Bei Slot-Nein direkt Bookings-Link. B6 vor Aktivierung integrieren; bis dahin ehrlicher Link-Fallback. | Story-Treffer/kein Treffer, Termininteresse Nein/Ja, Slot Nein/Ja/unklar, Kontaktdatenkorrektur, Bestätigung/Abbruch, Erfolg/Konflikt/Timeout und fehlende Integration geprüft; keine unbeantworteten Fragen oder Doppelbuchungen. |
 | 9 | **Öffentlicher Betrieb:** `/?code=...` vollständig behandeln, Query-Parameter beim Routing erhalten. SessionRequest/Startvalidierung für Code-only erweitern, keine Browser-Keys voraussetzen. Fehlende/ungültige/abgelaufene/limitierte Codes behandeln. HTTPS-Hosting und Asset-Auslieferung prüfen; GLB ggf. Draco/Meshopt-komprimieren. `npm start` muss die Angular-App ohne eigenen Voice-Server starten. | Frische Session je Kartenaufruf, Betreiber-Limits greifen, keine Secrets im Bundle, mobiler HTTPS-Test erfolgreich. |
 | 10 | **Gesamtabnahme:** Tests, Build und reale vollständige PTT-Gespräche mit beiden Termin-Zweigen. Anbieter, Stimme, Inventory-Werte, Endreason und Latenz pro Turn dokumentieren. | Kriterien aus Abschnitt 8 erfüllt; nicht nur einzelne Audio-Turns oder Unit-Tests grün. |
 
@@ -283,8 +344,10 @@ Voraussetzung** für dieses MVP. Bei gesonderter Freigabe `write-a-worker` verwe
 
 Kein eigenes Backend/BFF und keine Implementierung der Server-Engine im Angular-Repo.
 Kein OpenAI, kein Mistral Voice Agents SDK, kein Realtime-Call oder Freihandmodus im MVP.
-Kein QR-Scanner in der App, keine automatische Buchung oder Terminverfügbarkeitsabfrage,
-kein Live-Scraping, keine vorgerenderten/gestreamten Avatare und keine Morph-/Jaw-Lösung.
+Kein QR-Scanner in der App, kein Scraping der Bookings-Seite und keine Kalenderzugriffe
+direkt aus dem Browser. Verfügbarkeitsabfrage und ausdrücklich bestätigte automatische
+Buchung gehören nun zum Umfang nach 5.4/B6. Kein Live-Scraping, keine vorgerenderten/
+gestreamten Avatare und keine Morph-/Jaw-Lösung.
 Soll-Szenario nicht verändern. TypeSafe bleibt zurückgestellt. Keine Keys im Browser.
 
 ## 8. Abnahme
@@ -303,7 +366,10 @@ Shader-Mund -> nächste tatsächlich offene Eingabe**.
 | Nachfragen und Schlussfragen | Jede noch unbeantwortete Frage hat einen offenen Turn; kein Durchlauf mehrerer Fragen bis `terminal`. |
 | Slot-Dialog | Mehrere Slots pro Antwort, Korrekturen und unklare Angaben korrekt behandelt; keine erfundenen Werte. |
 | Optionaler Kontext | Firma/Branche dürfen abgelehnt oder übersprungen werden; kein Wiederholungszwang. |
-| Termin Ja/Nein/unklar | Link nur bei Ja, Nein respektiert, Unklarheit führt zu echter Rückfrage. |
+| Termininteresse Nein/Ja/unklar | Nein: keine Kalenderabfrage. Ja: echte Slot-Abfrage oder transparenter Link-Fallback. Unklarheit: echte Rückfrage. |
+| Slot-Angebot | Frühester buchbarer Thomas-Slot im geprüften Zeitraum, korrekter Service/Dauer/Zeitzone. Slot-Nein: Link zur eigenen Auswahl; Slot-Ja: Kontaktdaten und gesonderte Buchungsfreigabe. |
+| Automatische Buchung | Nur nach validierten Daten und ausdrücklicher Freigabe für das konkrete Angebot. Abbruch erzeugt keinen Termin. Erfolgsanzeige nur nach bestätigter Microsoft-Buchungs-ID. |
+| Konflikt/Timeout/Doppelsubmit | Belegter Slot führt zum Link-Fallback; ungewisses Buchungsergebnis wird zuerst abgeglichen. Wiederholung erzeugt keinen zweiten Termin. Keine echten Buchungen in automatisierten Tests. |
 | Ende | Abschied enthält keine neue Frage; Audio wird nicht abgeschnitten. Fehler/Ablauf sind kein erfolgreicher Gesprächsabschluss. |
 | Review und Namen | Kein `[object Object]`, kein JSON-Schema in TTS, kein vorausgesetztes „Mara“. Alle Quellen der angezeigten Fragen prüfen. |
 | Eingabe-/Verbindungsfehler | Mikro erlaubt/verweigert, Stille, STT-/TTS-Fehler, Doppelsubmit und Reconnect ohne Verlust oder Wiederholung behandelt. |
@@ -416,6 +482,68 @@ Für das Release die nächste freie Minor-Version verwenden (V5 nannte 0.151.0 b
    Neustart-/Mehrinstanzgrenzen dokumentieren.
 - Mapping bleibt serverseitig mit Operator-Zugangsdaten; keine feste Session-Scenario-
    GUID für die Karte. Tests für Resolver, Code-Start, Ablauf und Limits; OpenAPI ergänzen.
+
+### B6. Microsoft Bookings: Verfügbarkeit und automatische Buchung
+
+Neue Anforderung zusätzlich zu Thomas' ursprünglichem Teil B. Umsetzung und Betrieb
+gehören dem Agent-Server-Team bzw. einem vorhandenen gehosteten Connector, nicht dem
+Angular-BFF. B6 ist Freigabevoraussetzung für die neue Termin-Funktion in Phase 8,
+nicht für die davon unabhängigen Voice-/Avatar-Phasen.
+
+- **Zugriff:** Entra-Anwendung und Admin-Consent im zuständigen Microsoft-365-Tenant.
+   Für `getStaffAvailability` nennt Microsoft Graph die Application-Berechtigung
+   `Bookings.Read.All`; für das Erstellen von Terminen
+   `BookingsAppointment.ReadWrite.All`. Tatsächlich benötigte Rechte aller genutzten
+   Lese-/Schreibendpunkte und deren Tenant-Beschränkung vor Freigabe prüfen. Secrets
+   nur in der gehosteten Laufzeit, bevorzugt Zertifikat/verwaltete Identität soweit
+   unterstützt. Keine Microsoft-Anmeldung der Kartenempfänger voraussetzen.
+- **Konfiguration:** Bookings-Business, Service-ID, Thomas' Staff-ID und Zeitzone
+   administrativ bestätigen. Service aus Abschnitt 4 zuordnen; Staff-/Service-IDs
+   nicht aus dem öffentlichen Link raten. Dauer, Vor-/Nachpuffer, Vorlaufzeit,
+   Buchungshorizont, Zeitraster, Geschäfts-/Personalzeiten, Service-Verfügbarkeit,
+   Kapazität und erforderliche Kundenfragen aus Bookings berücksichtigen.
+- **Lesen:** `POST /v1.0/solutions/bookingBusinesses/{id}/getStaffAvailability`
+   mit `staffIds`, `startDateTime`, `endDateTime`. API liefert Verfügbarkeitsintervalle,
+   keine fertig validierte Liste buchbarer Service-Termine. Daraus nach den effektiven
+   Buchungsregeln den frühesten Kandidaten im begrenzten Suchhorizont bestimmen;
+   UTC/Zeitzonen/Sommerzeit korrekt behandeln und gegen die Bookings-Seite abgleichen.
+- **Angebotsvertrag (zu implementieren):** Ergebniszustände `available`, `none`,
+   `unavailable`; bei `available` serverseitige Angebots-ID, Start, Ende, Zeitzone,
+   Service-/Staff-Zuordnung, Ablaufzeit sowie überprüfter Buchungslink. Keine Kalender-
+   Details anderer Personen ausgeben. Angebot und Zustand an die aktuelle Session
+   binden. Der Browser darf weder Geschäft noch Mitarbeiter beliebig bestimmen.
+- **Buchen:** Nach bestätigtem Angebot und Datenvalidierung
+   `POST /v1.0/solutions/bookingBusinesses/{id}/appointments` mit dem richtigen Service,
+   Thomas' `staffMemberIds`, Start/Ende, Kundendaten und Service-Pflichtfeldern.
+   Microsofts Business-Rules-Validation ist auch bei App-only-Zugriff umzusetzen.
+   Namen/E-Mail prüfen, nicht benötigte Telefon-/Rückblickdaten weglassen. Bei
+   Gruppenangeboten ggf. erforderlichen Bookings-Kunden zuerst korrekt anlegen.
+- **Sicherheit:** Freigabe an Session, Angebot und bestätigten Datenstand binden;
+   serverseitige Idempotenz und Sperre gegen Doppelsubmit, begrenzte Rate und
+   Missbrauchsschutz für öffentliche Karten-Codes. Direkt vor dem Write erneut prüfen;
+   Read-then-Write allein garantiert keine atomare Reservierung. Konkurrenzverhalten
+   mit Bookings testen und Konflikte behandeln. Nach Timeout keine blinden Write-Retries;
+   Ergebnis mittels gespeicherter Operationskennung/Zuordnung abgleichen. Unklarheit
+   als eigener Status, nicht als Erfolg oder sicherer Fehlschlag behandeln.
+- **Buchungsvertrag (zu implementieren):** `confirmed` mit verifizierter Buchungs-ID,
+   tatsächlicher Zeit und nur von Microsoft gelieferten Folgelinks; alternativ
+   `conflict`, `failed` oder `unknown`. Connector-Writes sind durch deterministische
+   Freigabeprüfung geschützt, nicht allein durch Persona-Instruktionen.
+- **Datenschutz:** Datennutzung für die Buchung vor Bestätigung erklären, notwendige
+   Angaben minimieren, Aufbewahrung/Löschung festlegen. Kein Credential-/E-Mail-/
+   Kalenderdetail-Logging; keine persistente Freigabe im allgemeinen Inventory.
+- **Tests/Übergabe:** Mock-Tests für Nein-Zweige ohne Write, mehrere Intervalle,
+   Puffer/Vorlauf/Sommerzeit, Angebot abgelaufen, Datenkorrektur, Freigabe-Abbruch,
+   erfolgreicher Write, Konflikt, 401/403/429, Timeout und Doppelsubmit. Danach
+   freigegebener Testkalender, keine ungefragten Termine bei Thomas. Connector-Vertrag,
+   Rechte, Ressourcenbindung und Consent-Gates dokumentieren und alle Wartepunkte
+   durchspielen. Erst dann aktive Choreo und Angular-Darstellung anbinden.
+
+Offizielle API-Referenzen:
+- [Verfügbarkeit](https://learn.microsoft.com/en-us/graph/api/bookingbusiness-getstaffavailability?view=graph-rest-1.0)
+- [Service und Buchungsregeln](https://learn.microsoft.com/en-us/graph/api/resources/bookingservice?view=graph-rest-1.0)
+- [Termin anlegen](https://learn.microsoft.com/en-us/graph/api/bookingbusiness-post-appointments?view=graph-rest-1.0)
+- [Business-Rules-Validation](https://learn.microsoft.com/en-us/graph/bookingsbusiness-business-rules)
 
 ### Reihenfolge und Übergabe
 

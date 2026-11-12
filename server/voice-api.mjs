@@ -128,7 +128,8 @@ async function createVoiceSession(request, response, { env, fetchImpl, sessions 
       eventHistory: [],
       nextEventId: 0,
       audio: new Map(),
-      lastSpokenLineByGuid: new Map(),
+      agentSteps: new Map(),
+      spokenStepGuids: new Set(),
       answersByStepGuid: new Map(),
       ended: false,
       cleanupTimer: null,
@@ -156,6 +157,8 @@ async function followAgentSession(session, fetchImpl, env) {
           if (session.abort.signal.aborted) return;
           if (frame.event === 'step') {
             await handleStep(session, frame.data, fetchImpl, env);
+          } else if (frame.event === 'message_complete') {
+            await handleMessageComplete(session, frame.data, fetchImpl, env);
           } else if (frame.event === 'session_ending') {
             session.ended = true;
             publish(session, 'ended', { reason: frame.data?.reason ?? 'terminal' });
@@ -179,6 +182,10 @@ async function followAgentSession(session, fetchImpl, env) {
 
 async function handleStep(session, step, fetchImpl, env) {
   if (!step || typeof step !== 'object' || typeof step.guid !== 'string') return;
+  if (step.action === 'DELETE') {
+    session.agentSteps.delete(step.guid);
+    return;
+  }
   const fromUser = step.actorSymbolRef === 'human';
   const text = fromUser
     ? session.answersByStepGuid.get(step.guid) ?? answerText(step.line)
@@ -192,12 +199,22 @@ async function handleStep(session, step, fetchImpl, env) {
     });
   }
 
-  if (!fromUser && text?.trim() && session.lastSpokenLineByGuid.get(step.guid) !== step.line) {
-    session.lastSpokenLineByGuid.set(step.guid, step.line);
-    publish(session, 'status', { state: 'speaking' });
-    await synthesizeStep(session, { ...step, line: text }, fetchImpl, env);
+  if (!fromUser) {
+    session.agentSteps.set(step.guid, { ...step, line: text });
   }
 
+  await publishPendingStatus(session, fetchImpl);
+}
+
+async function handleMessageComplete(session, message, fetchImpl, env) {
+  const stepGuid = message?.stepGuid;
+  if (typeof stepGuid !== 'string' || session.spokenStepGuids.has(stepGuid)) return;
+  const step = session.agentSteps.get(stepGuid);
+  if (!step?.line?.trim()) return;
+
+  session.spokenStepGuids.add(stepGuid);
+  publish(session, 'status', { state: 'speaking' });
+  await synthesizeStep(session, step, fetchImpl, env);
   await publishPendingStatus(session, fetchImpl);
 }
 

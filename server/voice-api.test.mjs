@@ -495,6 +495,7 @@ test('streams ElevenLabs speech to the browser without exposing its key', async 
         new ReadableStream({
           start(controller) {
             controller.enqueue(new TextEncoder().encode(`event: step\ndata: ${JSON.stringify(step)}\n\n`));
+            controller.enqueue(new TextEncoder().encode(`event: message_complete\ndata: ${JSON.stringify({ stepGuid: step.guid })}\n\n`));
             init.signal?.addEventListener('abort', () => controller.close(), { once: true });
           },
         }),
@@ -565,4 +566,85 @@ test('streams ElevenLabs speech to the browser without exposing its key', async 
   assert.equal(audioResponse.status, 200);
   assert.equal(audioResponse.headers.get('content-type'), 'audio/mpeg');
   assert.deepEqual(Buffer.from(await audioResponse.arrayBuffer()), spokenBytes);
+});
+
+test('speaks only the completed text once despite streamed updates and replayed completion', async () => {
+  const encoder = new TextEncoder();
+  const spokenTexts = [];
+  const partial = 'Gibt es einen Moment, der dir besonders in Erinnerung geblieben';
+  const complete = `${partial} ist?`;
+  const frames = [
+    ['step', { guid: 'streamed-step', actorSymbolRef: 'agent', line: partial }],
+    ['step', { guid: 'streamed-step', actorSymbolRef: 'agent', line: complete }],
+    ['message_complete', { stepGuid: 'streamed-step' }],
+    ['step', { guid: 'streamed-step', actorSymbolRef: 'agent', line: complete, title: 'Updated title' }],
+    ['message_complete', { stepGuid: 'streamed-step' }],
+    ['message_complete', { stepGuid: 'unknown-step' }],
+    ['message_complete', {}],
+    ['step', { guid: 'human-step', actorSymbolRef: 'human', line: 'Meine Antwort' }],
+    ['message_complete', { stepGuid: 'human-step' }],
+    ['step', { guid: 'deleted-step', actorSymbolRef: 'agent', line: 'Nicht vorlesen' }],
+    ['step', { guid: 'deleted-step', action: 'DELETE' }],
+    ['message_complete', { stepGuid: 'deleted-step' }],
+    ['step', { guid: 'unfinished-step', actorSymbolRef: 'agent', line: 'Noch nicht fertig' }],
+    ['step', { guid: 'goodbye-step', actorSymbolRef: 'agent', line: 'Bis bald!' }],
+    ['message_complete', { stepGuid: 'goodbye-step' }],
+    ['session_ending', { reason: 'terminal' }],
+  ];
+  const fetchImpl = async (input, init = {}) => {
+    const url = String(input);
+    if (url.endsWith('/api/v1/sessions')) {
+      return Response.json({
+        sessionToken: 'private-agent-token',
+        controllerUrl: 'https://agent.example/api/v1/sessions/private-agent-token',
+      });
+    }
+    if (url.endsWith('/events')) {
+      return new Response(new ReadableStream({
+        start(controller) {
+          for (const [event, data] of frames) {
+            controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+          }
+          controller.close();
+        },
+      }), { headers: { 'Content-Type': 'text/event-stream' } });
+    }
+    if (url.endsWith('/steps/pending?waitSeconds=0')) {
+      return Response.json({ status: 'working' });
+    }
+    if (url.startsWith('https://api.elevenlabs.io/v1/text-to-speech/')) {
+      spokenTexts.push(JSON.parse(init.body).text);
+      return new Response('mock-audio', { headers: { 'Content-Type': 'audio/mpeg' } });
+    }
+    return new Response('not found', { status: 404 });
+  };
+
+  const origin = await startServer({ env: BASE_ENV, fetchImpl });
+  const created = await fetch(`${origin}/api/voice/sessions`, { method: 'POST' });
+  const { sessionId } = await created.json();
+  const events = await fetch(`${origin}/api/voice/sessions/${sessionId}/events`, {
+    signal: AbortSignal.timeout(5000),
+  });
+  const reader = events.body.getReader();
+  const decoder = new TextDecoder();
+  let eventText = '';
+  while (!eventText.includes('event: ended')) {
+    const { value, done } = await reader.read();
+    assert.equal(done, false);
+    eventText += decoder.decode(value, { stream: true });
+  }
+  await reader.cancel();
+
+  assert.deepEqual(spokenTexts, [complete, 'Bis bald!']);
+  const emitted = eventText.split('\n\n').flatMap((block) => {
+    const event = block.match(/^event: (.+)$/m)?.[1];
+    const data = block.match(/^data: (.+)$/m)?.[1];
+    return event && data ? [{ event, data: JSON.parse(data) }] : [];
+  });
+  const speech = emitted.filter((frame) => frame.event === 'speech');
+  assert.deepEqual(speech.map((frame) => frame.data.stepGuid), ['streamed-step', 'goodbye-step']);
+  const completeMessageIndex = emitted.findIndex((frame) => frame.event === 'message' && frame.data.text === complete);
+  assert.ok(completeMessageIndex >= 0);
+  assert.ok(emitted.indexOf(speech[0]) > completeMessageIndex);
+  assert.ok(emitted.findIndex((frame) => frame.event === 'ended') > emitted.indexOf(speech[1]));
 });
