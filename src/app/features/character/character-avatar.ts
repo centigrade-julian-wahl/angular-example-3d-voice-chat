@@ -14,6 +14,7 @@ import {
   DEFAULT_CHARACTER_CONFIG,
   type AvatarEmotion,
   type AvatarState,
+  type BlinkTarget,
   type CharacterConfig,
   type DriverTarget,
 } from './character-config';
@@ -95,6 +96,9 @@ export class CharacterAvatar implements AfterViewInit, OnDestroy {
   private mouthBoneBaseX = 0;
   private mouthMorphs: { mesh: Three.Mesh; index: number }[] = [];
   private mouthShaderUniforms: { value: number }[] = [];
+  private blinkShaderUniforms: { value: number }[] = [];
+  private blinkStartTime: number | null = null;
+  private nextBlinkAt = 0;
   private readonly reducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -184,6 +188,7 @@ export class CharacterAvatar implements AfterViewInit, OnDestroy {
 
     await this.loadModel(this.config());
     this.addStage();
+    this.nextBlinkAt = performance.now() + 2200 + Math.random() * 2600;
     this.resize();
     this.render();
   }
@@ -230,17 +235,21 @@ export class CharacterAvatar implements AfterViewInit, OnDestroy {
         if (index !== undefined) this.mouthMorphs.push({ mesh: object, index });
       });
     } else if (target.kind === 'shader') {
-      this.bindShaderMouth(model, target);
+      this.bindShaderMouth(model, target, config.blink);
     }
   }
 
   private bindShaderMouth(
     model: Three.Object3D,
     target: Extract<DriverTarget, { kind: 'shader' }>,
+    blink: BlinkTarget,
   ): void {
     const THREE = this.three;
     if (!THREE) return;
     const uniformName = `u_${target.parameter.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+    const blinkUniformName = blink.kind === 'shader'
+      ? `u_${blink.parameter.replace(/[^a-zA-Z0-9_]/g, '_')}`
+      : '';
     const [centerX, centerY, centerZ] = target.center;
     const axisVector = (axis: 'x' | 'y' | 'z'): string =>
       axis === 'x' ? '1.0, 0.0, 0.0' : axis === 'y' ? '0.0, 1.0, 0.0' : '0.0, 0.0, 1.0';
@@ -251,6 +260,7 @@ export class CharacterAvatar implements AfterViewInit, OnDestroy {
       for (const material of materials) {
         if (!(material instanceof THREE.MeshStandardMaterial)) continue;
         const uniform = { value: 0 };
+        const blinkUniform = { value: 0 };
         const previousCompile = material.onBeforeCompile;
         material.onBeforeCompile = (shader, renderer) => {
           previousCompile.call(material, shader, renderer);
@@ -262,6 +272,7 @@ export class CharacterAvatar implements AfterViewInit, OnDestroy {
           ) throw new Error('The material does not support the mouth shader.');
 
           shader.uniforms[uniformName] = uniform;
+          if (blink.kind === 'shader') shader.uniforms[blinkUniformName] = blinkUniform;
           shader.vertexShader = shader.vertexShader.replace(
             '#include <common>',
             '#include <common>\nvarying vec3 vMouthLocalPosition;',
@@ -272,7 +283,7 @@ export class CharacterAvatar implements AfterViewInit, OnDestroy {
           );
           shader.fragmentShader = shader.fragmentShader.replace(
             '#include <common>',
-            `#include <common>\nvarying vec3 vMouthLocalPosition;\nuniform float ${uniformName};`,
+            `#include <common>\nvarying vec3 vMouthLocalPosition;\nuniform float ${uniformName};${blink.kind === 'shader' ? `\nuniform float ${blinkUniformName};` : ''}`,
           );
           shader.fragmentShader = shader.fragmentShader.replace(
             '#include <color_fragment>',
@@ -285,14 +296,46 @@ export class CharacterAvatar implements AfterViewInit, OnDestroy {
             float mouthEllipse = pow(mouthHorizontal / ${target.width}, 2.0) + pow(mouthVertical / mouthHeight, 2.0);
             float mouthDepth = abs(mouthDepthOffset) / ${target.depth};
             float mouthMask = (1.0 - smoothstep(0.72, 1.0, mouthEllipse)) * (1.0 - smoothstep(0.55, 1.0, mouthDepth));
-            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.012, 0.02, 0.03), mouthMask);`,
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.012, 0.02, 0.03), mouthMask);
+            float incisorHalfHeight = mouthHeight * 0.17;
+            float incisorVertical = pow((mouthVertical - mouthHeight * 0.5) / incisorHalfHeight, 2.0);
+            float leftIncisor = pow((mouthHorizontal + 0.0085) / 0.007, 2.0) + incisorVertical;
+            float rightIncisor = pow((mouthHorizontal - 0.0085) / 0.007, 2.0) + incisorVertical;
+            float upperIncisors = max(1.0 - smoothstep(0.72, 1.0, leftIncisor), 1.0 - smoothstep(0.72, 1.0, rightIncisor));
+            float lowerIncisor = pow(mouthHorizontal / 0.006, 2.0) + pow((mouthVertical + mouthHeight * 0.48) / (mouthHeight * 0.14), 2.0);
+            float teeth = max(upperIncisors, 1.0 - smoothstep(0.72, 1.0, lowerIncisor));
+            float teethVisibility = smoothstep(0.2, 0.55, clamp(${uniformName}, 0.0, 1.0));
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.96, 0.98, 1.0), teeth * mouthMask * teethVisibility);
+            ${blink.kind === 'shader' ? `
+            float blinkAmount = clamp(${blinkUniformName}, 0.0, 1.0);
+            vec3 leftEyeDelta = vMouthLocalPosition - vec3(${blink.leftCenter.join(', ')});
+            vec3 rightEyeDelta = vMouthLocalPosition - vec3(${blink.rightCenter.join(', ')});
+            float leftEyeHorizontal = dot(leftEyeDelta, vec3(${axisVector('x')}));
+            float rightEyeHorizontal = dot(rightEyeDelta, vec3(${axisVector('x')}));
+            float leftEyeVertical = dot(leftEyeDelta, vec3(${axisVector('y')}));
+            float rightEyeVertical = dot(rightEyeDelta, vec3(${axisVector('y')}));
+            float leftEyeDepth = abs(dot(leftEyeDelta, vec3(${axisVector('z')}))) / ${blink.depth};
+            float rightEyeDepth = abs(dot(rightEyeDelta, vec3(${axisVector('z')}))) / ${blink.depth};
+            float leftEyeShape = pow(leftEyeHorizontal / ${blink.halfWidth}, 2.0) + pow(leftEyeVertical / ${blink.halfHeight}, 2.0);
+            float rightEyeShape = pow(rightEyeHorizontal / ${blink.halfWidth}, 2.0) + pow(rightEyeVertical / ${blink.halfHeight}, 2.0);
+            float leftEyeMask = (1.0 - smoothstep(0.72, 1.0, leftEyeShape)) * (1.0 - smoothstep(0.55, 1.0, leftEyeDepth));
+            float rightEyeMask = (1.0 - smoothstep(0.72, 1.0, rightEyeShape)) * (1.0 - smoothstep(0.55, 1.0, rightEyeDepth));
+            float lidEdge = mix(${blink.halfHeight}, -${blink.halfHeight}, blinkAmount);
+            float leftLid = smoothstep(lidEdge - 0.002, lidEdge + 0.002, leftEyeVertical) * leftEyeMask * blinkAmount;
+            float rightLid = smoothstep(lidEdge - 0.002, lidEdge + 0.002, rightEyeVertical) * rightEyeMask * blinkAmount;
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${blink.lidColor.join(', ')}), max(leftLid, rightLid));
+            float leftCrease = (1.0 - smoothstep(0.0015, 0.004, abs(leftEyeVertical))) * leftEyeMask * blinkAmount;
+            float rightCrease = (1.0 - smoothstep(0.0015, 0.004, abs(rightEyeVertical))) * rightEyeMask * blinkAmount;
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${blink.creaseColor.join(', ')}), max(leftCrease, rightCrease));
+            ` : ''}`,
           );
         };
         const previousCacheKey = material.customProgramCacheKey.bind(material);
-        const shaderConfigKey = JSON.stringify(target);
-        material.customProgramCacheKey = () => `${previousCacheKey()}|${uniformName}|${shaderConfigKey}`;
+        const shaderConfigKey = JSON.stringify({ mouth: target, blink });
+        material.customProgramCacheKey = () => `${previousCacheKey()}|${uniformName}|${blinkUniformName}|${shaderConfigKey}`;
         material.needsUpdate = true;
         this.mouthShaderUniforms.push(uniform);
+        if (blink.kind === 'shader') this.blinkShaderUniforms.push(blinkUniform);
       }
     });
   }
@@ -375,9 +418,34 @@ export class CharacterAvatar implements AfterViewInit, OnDestroy {
     this.mixer?.update((now - this.lastFrame) / 1000);
     this.lastFrame = now;
     this.applyMouth(this.mouthLevel());
+    this.updateBlink(now);
     this.render();
     this.frameId = requestAnimationFrame(this.animate);
   };
+
+  private updateBlink(now: number): void {
+    if (this.reducedMotion || this.blinkShaderUniforms.length === 0) return;
+    if (this.blinkStartTime === null) {
+      if (now < this.nextBlinkAt) return;
+      this.blinkStartTime = now;
+    }
+
+    const progress = Math.min(1, (now - this.blinkStartTime) / 180);
+    const phase = progress < 0.45 ? progress / 0.45 : (progress - 0.45) / 0.55;
+    const eased = phase * phase * (3 - 2 * phase);
+    const amount = progress < 0.45 ? eased : 1 - eased;
+    this.applyBlink(amount);
+
+    if (progress === 1) {
+      this.blinkStartTime = null;
+      this.nextBlinkAt = now + 2200 + Math.random() * 3000;
+    }
+  }
+
+  private applyBlink(level: number): void {
+    const closed = Math.min(1, Math.max(0, level));
+    for (const uniform of this.blinkShaderUniforms) uniform.value = closed;
+  }
 
   /** Runs after the mixer, which would otherwise overwrite a bone pose every frame. */
   private applyMouth(level: number): void {

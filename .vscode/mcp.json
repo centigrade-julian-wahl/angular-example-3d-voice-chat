@@ -1,0 +1,13 @@
+{
+  "servers": {
+    "blender": {
+      "type": "stdio",
+      "command": "/opt/homebrew/bin/uvx",
+      "args": ["mcp-for-blender"],
+      "env": {
+        "BLENDER_MCP_SAFE_MODE": "1",
+        "DISABLE_TELEMETRY": "true"
+      }
+    }
+  }
+}

@@ -16,6 +16,20 @@ export type DriverTarget =
       depth: number;
     };
 
+export type BlinkTarget =
+  | { kind: 'none' }
+  | {
+      kind: 'shader';
+      parameter: string;
+      leftCenter: [number, number, number];
+      rightCenter: [number, number, number];
+      halfWidth: number;
+      halfHeight: number;
+      depth: number;
+      lidColor: [number, number, number];
+      creaseColor: [number, number, number];
+    };
+
 export type AvatarState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 export type AvatarEmotion = 'laugh' | 'agree' | 'angry' | 'bow' | 'heart' | 'wait' | 'flip';
@@ -30,12 +44,12 @@ export interface CharacterConfig {
   /** One-shot clip per emotion; a missing emotion is ignored. */
   emotions: Partial<Record<AvatarEmotion, string>>;
   mouth: DriverTarget;
-  blink: DriverTarget;
+  blink: BlinkTarget;
 }
 
-/** The Wichtel has no mouth rig; the mouth is drawn by its material shader. */
+/** This Wichtel has no facial shape keys; the mouth is drawn by its material shader. */
 export const DEFAULT_CHARACTER_CONFIG: CharacterConfig = {
-  modelUrl: '/wichtel-2026-03.glb',
+  modelUrl: '/wichtel-rigged.glb',
   size: 4,
   states: { idle: 'idle.001', listening: 'idle.001', thinking: 'wait.001', speaking: 'idle.001' },
   emotions: {
@@ -44,18 +58,29 @@ export const DEFAULT_CHARACTER_CONFIG: CharacterConfig = {
     angry: 'angry_01.001',
     bow: 'bow.001',
     heart: 'heart_pose.001',
+    flip: 'flip.001',
   },
   mouth: {
     kind: 'shader',
     parameter: 'mouthOpen',
-    center: [-0.002123, 0.477035, 0.171081],
+    center: [0, 0.46, 0.163],
     horizontalAxis: 'x',
     verticalAxis: 'y',
     depthAxis: 'z',
-    width: 0.028,
-    closedHeight: 0.001,
-    openHeight: 0.012,
-    depth: 0.025,
+    width: 0.035,
+    closedHeight: 0.0015,
+    openHeight: 0.018,
+    depth: 0.045,
   },
-  blink: { kind: 'none' },
+  blink: {
+    kind: 'shader',
+    parameter: 'eyeBlink',
+    leftCenter: [-0.075, 0.55, 0.145],
+    rightCenter: [0.075, 0.55, 0.145],
+    halfWidth: 0.05,
+    halfHeight: 0.06,
+    depth: 0.15,
+    lidColor: [0.1, 0.22, 0.55],
+    creaseColor: [0.025, 0.07, 0.18],
+  },
 };
