@@ -112,10 +112,12 @@ export class PttVoiceService {
         body: audio,
       });
       const body = await readResponse<{ transcript?: string; error?: string }>(response);
+      if (this._sessionId() !== sessionId) return;
       if (!response.ok) throw new Error(body.error ?? `Die Spracheingabe ist fehlgeschlagen (${response.status}).`);
       this._state.set('thinking');
       void this.refreshStatus(sessionId);
     } catch (error) {
+      if (this._sessionId() !== sessionId) return;
       this._error.set(error instanceof Error ? error.message : 'Die Spracheingabe ist fehlgeschlagen.');
       this._state.set(this._pending() ? 'asking' : 'error');
     }
@@ -135,10 +137,12 @@ export class PttVoiceService {
         body: JSON.stringify({ text: value }),
       });
       const body = await readResponse<{ error?: string }>(response);
+      if (this._sessionId() !== sessionId) return false;
       if (!response.ok) throw new Error(body.error ?? `Die Antwort wurde nicht angenommen (${response.status}).`);
       void this.refreshStatus(sessionId);
       return true;
     } catch (error) {
+      if (this._sessionId() !== sessionId) return false;
       this._error.set(error instanceof Error ? error.message : 'Die Antwort wurde nicht angenommen.');
       this._state.set(this._pending() ? 'asking' : 'error');
       return false;
@@ -160,6 +164,21 @@ export class PttVoiceService {
     if (this._state() === 'ended') return;
     const state = this._pending() ? 'asking' : 'working';
     this._state.set(state);
+  }
+
+  abortSession(): void {
+    const sessionId = this._sessionId();
+    this.eventSource?.close();
+    this.eventSource = null;
+    this.clearStatusPoll();
+    this._sessionId.set(null);
+    this._pending.set(null);
+    this._audioUrl.set(null);
+    this._state.set('ended');
+
+    if (sessionId) {
+      void fetch(`/api/voice/sessions/${sessionId}`, { method: 'DELETE' }).catch(() => undefined);
+    }
   }
 
   stop(): void {
@@ -197,6 +216,7 @@ export class PttVoiceService {
   }
 
   private onMessage(event: MessageEvent<string>): void {
+    if (!this._sessionId()) return;
     try {
       const message = JSON.parse(event.data) as VoiceMessage;
       this._messages.update((messages) => {
@@ -213,6 +233,7 @@ export class PttVoiceService {
   }
 
   private onStatus(event: MessageEvent<string>): void {
+    if (!this._sessionId()) return;
     try {
       const status = JSON.parse(event.data) as {
         state?: VoiceSessionState;
@@ -244,6 +265,7 @@ export class PttVoiceService {
   }
 
   private onSpeech(event: MessageEvent<string>): void {
+    if (!this._sessionId()) return;
     try {
       const speech = JSON.parse(event.data) as { audioUrl?: string };
       if (speech.audioUrl) this._audioUrl.set(speech.audioUrl);
@@ -286,6 +308,7 @@ export class PttVoiceService {
   private async refreshStatus(sessionId: string): Promise<void> {
     try {
       const response = await fetch(`/api/voice/sessions/${sessionId}/status`);
+      if (this._sessionId() !== sessionId) return;
       if (!response.ok) {
         this.scheduleStatusPoll();
         return;
@@ -297,9 +320,10 @@ export class PttVoiceService {
         required?: string[];
         schema?: Record<string, unknown> | null;
       };
+      if (this._sessionId() !== sessionId) return;
       this.onStatus({ data: JSON.stringify(status) } as MessageEvent<string>);
     } catch {
-      this.scheduleStatusPoll();
+      if (this._sessionId() === sessionId) this.scheduleStatusPoll();
     }
   }
 
