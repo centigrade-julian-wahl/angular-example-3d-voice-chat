@@ -1,5 +1,5 @@
 ---
-title: "Soll-Implementierungsplan: Wichtel-App"
+title: "Soll-Implementierungsplan Wichtel-App"
 date: "2026-11-12"
 document_type: "Technischer Soll-Implementierungsplan"
 target_state: "Zielbild; keine Statusbeschreibung des aktuellen Prototyps"
@@ -17,7 +17,7 @@ publication: "Vom Nutzer zur Veröffentlichung im eigenen Fork freigegeben"
 do_not_commit: false
 do_not_publish: false
 ---
-# Soll-Implementierungsplan: Wichtel-App
+# Soll-Implementierungsplan Wichtel-App
 
 Technischer Sollzustand zum Neuaufsetzen im Main-Repo. Stand: 12.11.2026.
 Dieses Dokument beschreibt das Zielbild, nicht den Umsetzungsstand des aktuellen Prototyps.
