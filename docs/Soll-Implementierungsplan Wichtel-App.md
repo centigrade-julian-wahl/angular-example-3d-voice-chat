@@ -279,12 +279,40 @@ erledigter Prototyp-Arbeiten. Geeignete vorhandene Bausteine jeweils wiederverwe
 | 2 | **Generischen Transport bauen:** `LeanScopeSessionService` um `transcribe(blob, language)` und `setTtsActive(active)` sowie typisierte Audio-/Actor-/Ending-Events in `onFrame` erweitern. Bestehende start/submit/pending- und allgemeine Frame-API erhalten. Alte Session-Antworten nach Stop/Neustart ignorieren. | Mock-Tests für HTTP-Body/MIME, Fehler, fragmentierte SSE-Frames, optionale Felder, unbekannte Events und Abmeldung. Keine Wichtel-Logik im Service. |
 | 3 | **Gesprächsseite und PTT:** Feature-Route und bewussten Start erstellen. Für Entwicklung nach Server-Freigabe bereits den Code-Start aus Phase 9 verwenden, keine Keys im Browser überbrücken. `getUserMedia` -> MediaRecorder nur beim Halten, beim Loslassen Blob an `/stt`, gültiges Transkript an offenen Turn. `plain` = PTT, `structured` = reaktives Formular, `idle` = keine Eingabe. Transkript als Untertitel, Textfallback verfügbar. | Halten/Loslassen per Pointer und Tastatur; WebM/Opus und Safari-MP4; Mikro verweigert, Stille, Aufnahmegrenze, Abbruch, Retry und schema-konforme Antworten geprüft. |
 | 4 | **Native Wiedergabe:** Start-Geste entsperrt AudioContext. Session-Gate/SSE/TTS-Aktivierung koordinieren, dann Gespräch freigeben. MP3-Chunks pro `stepGuid` in einer Queue abspielen; `tts_audio_end` beendet die Lieferung. Für MVP PTT während Audio sperren. Kein automatisches Ersetzen laufender Audioquelle durch nächsten Chunk. | Begrüßung und Rupert hörbar; geordnete lückenarme Wiedergabe, kein Replay alter Chunks bei Reconnect, leere Audiofolge/Fehler behandelt, letzte Antwort vor UI-Ende ausgespielt. |
-| 5 | **Zustands-Mapper:** Session/Pending und reale Audio-/Recorder-Ereignisse nach `idle`, `listening`, `thinking`, `speaking` übersetzen; blink-Timer, später emotion/action. `listening` bei gehaltener Taste, nicht allein weil ein Formular offen ist. | Testsequenzen zeigen korrekte Wechsel; keine laufenden Aufnahme-/Status-Timer nach Ende; Avatar kennt nur Zustände. |
+| 5 | **Zustands-Mapper:** Die Übergänge nach dem Zustandsvertrag 6.1 implementieren. Session/Pending, echte Recorder- und Audio-Playback-Ereignisse auswerten; PTT-Halten und Textantwort unterscheiden. Blinzeln unabhängig vom Gesprächsturn takten, Emotion/Action erst bei bestätigtem Server-Event ergänzen. | Sequenztests für Sprache, Text, Playback-Ende, Pause, Abbruch, Session-Ende und verspätete Events; keine Timer/Animationen nach Zerstörung; Avatar kennt nur Zustände. |
 | 6 | **Avatar-Runtime:** Three.js, GLTFLoader, Renderer, Licht, Kamera und AnimationMixer aufsetzen. CharacterConfig aus Actor-Ressource/GLB/Parametern erstellen; `idleClip`, `laughClip`, `mouthParam`, Emotion->Clip konfigurierbar. Relative Datei-URLs korrekt auflösen; lokale GLB als definierter Fallback. | Modell sichtbar, passend skaliert und zentriert; Idle/Laugh und Lade-/Fehlerzustände funktionieren auf Desktop/Mobil. Parameter nur an Avatar-Ressource bzw. ihrer `IS`-Bindung pflegen. |
 | 7 | **Shader-Lipsync:** Geeignete Materialfläche und konfigurierbaren Mundparameter aufbauen. Shader-Maske mit animiertem Modell stabil halten, keine Knochen/Morphs ergänzen. Zeichen-/Vokal-Alignment an tatsächliche Chunkzeit koppeln, ohne Alignment RMS. Bei Pause/Fehler/Ende Mund schließen. | Sichtbar synchrone Mundbewegung, unveränderte übrige Materialdarstellung, Reduced Motion und Reset getestet. Grenzen dokumentiert. |
 | 8 | **Success Story und Termin:** Kuratierte Projektliste integrieren, nur bei klarer Passung eine Story nennen. Terminablauf nach 5.4: Termininteresse erfragen; bei Ja ausschließlich den bestehenden Bookings-Link anzeigen, bei Nein ohne Link verabschieden. Die Person bucht selbst auf Microsoft Bookings. | Story-Treffer/kein Treffer, Termininteresse Ja/Nein/unklar, klickbarer Link nur bei Ja, keine erfundenen Termine oder Buchungsbestätigungen. |
 | 9 | **Öffentlicher Betrieb:** `/?code=...` vollständig behandeln, Query-Parameter beim Routing erhalten. SessionRequest/Startvalidierung für Code-only erweitern, keine Browser-Keys voraussetzen. Fehlende/ungültige/abgelaufene/limitierte Codes behandeln. HTTPS-Hosting und Asset-Auslieferung prüfen; GLB ggf. Draco/Meshopt-komprimieren. `npm start` muss die Angular-App ohne eigenen Voice-Server starten. | Frische Session je Kartenaufruf, Betreiber-Limits greifen, keine Secrets im Bundle, mobiler HTTPS-Test erfolgreich. |
 | 10 | **Gesamtabnahme:** Tests, Build und reale vollständige PTT-Gespräche mit beiden Termin-Zweigen. Anbieter, Stimme, Inventory-Werte, Endreason und Latenz pro Turn dokumentieren. | Kriterien aus Abschnitt 8 erfüllt; nicht nur einzelne Audio-Turns oder Unit-Tests grün. |
+
+### 6.1 Zustands-Mapper-Vertrag
+
+Der Mapper ist die einzige Stelle, die Session-/Audiozustände in Avatarzustände umsetzt.
+`asking` und `working` sind Sessionzustände; sie sind nicht automatisch gleichbedeutend mit
+`listening` oder `speaking`.
+
+| Zustand | Eintritt | Austritt |
+|---|---|---|
+| `idle` | Noch keine aktive Session oder die Session ist beendet/abgebrochen. | Beim Start einer neuen Session nach `thinking`; nicht schon beim Öffnen der Texteingabe. |
+| `listening` | PTT ist gehalten **und** der `MediaRecorder` läuft tatsächlich. | Beim Loslassen sofort zu `transcribing`/`thinking`; bei leerer oder verworfener Aufnahme zurück zum vorherigen Eingabezustand. Ein geöffnetes Textformular ist nicht `listening`. |
+| `thinking` | Sessionstart, STT/Submit oder Agent-Verarbeitung nach akzeptierter Eingabe. Bleibt aktiv bis zur tatsächlichen Wiedergabe; ein `tts_audio`-Frame allein reicht nicht. | Zu `speaking` beim `play`-Ereignis des Audioelements; bei Eingabeaufforderung ohne Audio zu `asking`/`idle` nach Pending-Status. |
+| `speaking` | Audio wird im Browser tatsächlich abgespielt. Bereits empfangene/gequeue-te TTS-Chunks zählen noch nicht als Wiedergabe. | Erst wenn `tts_audio_end` die Lieferung beendet **und** die Queue vollständig abgespielt ist. Danach `asking`, wenn der Server auf Eingabe wartet, sonst `thinking` oder `idle` bei Sessionende. |
+| Pausiert | Nutzer drückt Pause: Audio pausieren, Eingabe sperren, weitere eintreffende TTS-Chunks puffern; Status „Pausiert“. | Fortsetzen startet dieselbe Audioposition/Queue weiter. Pausieren behauptet nicht, die Agent-Server-Generierung anzuhalten. |
+| Abgebrochen | Nutzer bricht ab: Aufnahme verwerfen, Audio stoppen, Session schließen, Timer/Events der Session abmelden. | Terminaler UI-Zustand; verspätete Antworten der alten Session ignorieren. Transcript darf bis zum Neustart sichtbar bleiben. |
+
+**Blinzeln:** Separater Timer, nicht an `listening`/`speaking` gekoppelt. Für den aktuellen
+Avatar zufälliger Abstand von ca. 2,2–5,2 Sekunden und ca. 180 ms Blinkdauer; bei
+`prefers-reduced-motion` deaktiviert. Alle Timer mit dem Avatar aufräumen.
+
+**Emotion/Action:** Kein LLM-Text parsen und keine Aktion aus Formulierungen erraten. Erst
+einen bestätigten strukturierten Agent-Server-Frame (z. B. `voice_direction`, falls für
+das deployed Release vereinbart) in konfigurierte Emotion-/Clipnamen übersetzen. Bis dahin
+bleibt die einfache Zustandsanimation aktiv.
+
+**Priorität bei gleichzeitigen Ereignissen:** Abbruch/Sessionende > Pause > laufende
+Wiedergabe > Aufnahme > Verarbeitung > Eingabebereitschaft. So können ein später SSE-Status
+oder ein verspäteter HTTP-Response eine pausierte oder beendete Session nicht überschreiben.
 
 Falls eine weitergehende dynamische Success-Story-Suche später nötig wird, zuerst
 Auftrag und vorhandene Möglichkeiten prüfen. Ein eigener Worker ist **keine
