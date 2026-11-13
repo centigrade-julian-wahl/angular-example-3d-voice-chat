@@ -1,7 +1,8 @@
 ---
-title: "Implementierungsanleitung: Wichtel-App"
+title: "Soll-Implementierungsplan: Wichtel-App"
 date: "2026-11-12"
-document_type: "Technischer From-scratch-Umsetzungsplan"
+document_type: "Technischer Soll-Implementierungsplan"
+target_state: "Zielbild; keine Statusbeschreibung des aktuellen Prototyps"
 repository: "https://github.com/LeanScope/angular-example-3d-voice-chat"
 purpose: >-
    Eigenständig lesbare Arbeitsanweisung zum Neuaufsetzen der App im Main-Repo,
@@ -16,8 +17,10 @@ publication: "Vom Nutzer zur Veröffentlichung im eigenen Fork freigegeben"
 do_not_commit: false
 do_not_publish: false
 ---
+# Soll-Implementierungsplan: Wichtel-App
 
-# Implementierungsanleitung: Wichtel-App
+Technischer Sollzustand zum Neuaufsetzen im Main-Repo. Stand: 12.11.2026.
+Dieses Dokument beschreibt das Zielbild, nicht den Umsetzungsstand des aktuellen Prototyps.
 
 ## 1. Ziel
 

@@ -1,6 +1,6 @@
 {
   "name": "leanscope-agent-kit-angular-quickstart",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "scripts": {
     "ng": "ng",
     "start": "node scripts/dev.mjs",
